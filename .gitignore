@@ -1,0 +1,23 @@
+# OS files
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Sensitive credentials
+*.token
+*.key
+.env
+*.env.local
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*.swo
+
+# Large files
+*.zip
+*.rar
+*.7z
+*.tar.gz
+node_modules/
