@@ -36,9 +36,12 @@ ETF_CONFIG = {
 # ============================================================
 
 def get_signals(close_df):
-    """基于均线生成信号"""
+    """基于均线生成买卖信号"""
     signals = {}
-    for code in close_df.columns:
+    for code in ETF_CONFIG.keys():  # ⚠️ 只取我们配置中的标的，不用 close_df.columns
+        if code not in close_df.columns:
+            signals[code] = 0
+            continue
         prices = close_df[code].dropna().values
         if len(prices) < 20:
             signals[code] = 0
@@ -56,15 +59,34 @@ def get_signals(close_df):
 
 
 def get_weights(signals):
-    """信号 → 权重（归一化）"""
-    w = {}
+    """信号 -> 权重（归一化）"""
+    raw = {}
     for code, cfg in ETF_CONFIG.items():
         base = cfg['target']
         sig = signals.get(code, 0)
-        w[code] = base * (0.5 if sig == -1 else min(1.2, 1.0) if sig == 1 else 1.0)
-        w[code] = min(w[code], 0.30)  # 单只上限
-    total = sum(w.values())
-    return {k: v / total for k, v in w.items()} if total > 0 else w
+        # 清晰的分支逻辑
+        if sig == -1:
+            raw[code] = base * 0.5
+        elif sig == 1:
+            raw[code] = base * 1.2
+        else:
+            raw[code] = base
+        # 单只上限
+        if raw[code] > 0.30:
+            raw[code] = 0.30
+
+    # 求和归一化
+    total = 0.0
+    for v in raw.values():
+        total += v
+
+    if total <= 0:
+        return raw
+
+    result = {}
+    for code, v in raw.items():
+        result[code] = v / total
+    return result
 
 
 # ============================================================
@@ -82,7 +104,7 @@ def do_rebalance(context):
     codes = list(ETF_CONFIG.keys())
 
     # 获取近30日数据
-    df = get_price(codes, count=30, frequency='daily')
+    df = get_price(codes, count=30, frequency='daily', panel=False)
 
     # ✅ 正确姿势：df['close'][code]
     close_df = df['close']
