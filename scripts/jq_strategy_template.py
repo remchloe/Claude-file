@@ -71,8 +71,10 @@ def daily_run(context):
         s = sig.get(code, 0)
         w[code] = min(ETF_BASE_WEIGHT[code] * SIGNAL_MULT.get(s, 1.0), 0.35)
 
-    total = sum(w.values())
-    if total <= 0: return
+    total = 0.0
+    for v in w.values():
+        total += v
+    if total <= 0.0: return
     scale = 1.0 - cash_pct
     target = {k: v / total * scale for k, v in w.items()}
 
