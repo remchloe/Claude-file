@@ -14,8 +14,11 @@ Claude-file/
 │   ├── data/                  # 数据文件（如 CSV）
 │   ├── documents/             # 其他文档
 │   └── configs/               # 配置文件
-├── reports/                   # 分析报告（如 ETF 周报）
-├── references/                # 参考文档（如分析框架）
+├── reports/                   # 分析报告（ETF周报/日报）
+├── references/                # 参考文档（双SKILL体系）
+│   ├── etf-analysis_SKILL.md    # [理论] ETF分类/指标/策略/代码模板
+│   └── etf-operation_SKILL.md   # [实战] ⭐盘前流程/偏差记录/持续改进
+│                                 # 每次操作前必读，每次偏差后更新
 ├── assets/                    # 其他资源
 ├── .gitignore
 └── README.md
@@ -32,7 +35,7 @@ Claude-file/
 | `generated-files/documents` | 存放其他文档 |
 | `generated-files/configs` | 存放配置文件 |
 | `reports/` | 存放分析报告（周报等） |
-| `references/` | 参考文档、SKILL 文件 |
+| `references/` | 参考文档、SKILL 文件（详见上方目录结构说明） |
 | `assets/` | 存放图片等资源文件 |
 
 ## 同步命令
