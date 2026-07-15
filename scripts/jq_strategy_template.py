@@ -82,7 +82,7 @@ def do_rebalance(context):
     codes = list(ETF_CONFIG.keys())
 
     # 获取近30日数据
-    df = get_price(codes, count=30, frequency='daily', skip_paused=True)
+    df = get_price(codes, count=30, frequency='daily')
 
     # ✅ 正确姿势：df['close'][code]
     close_df = df['close']
@@ -99,7 +99,8 @@ def do_rebalance(context):
             continue
 
         target_value = total * tw
-        current_shares = context.portfolio.positions.get(code, 0)
+        pos_obj = context.portfolio.positions.get(code)
+        current_shares = pos_obj.total_amount if pos_obj else 0
         current_value = current_shares * price
         diff = target_value - current_value
 
