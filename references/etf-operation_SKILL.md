@@ -76,8 +76,11 @@ maintainer: "etf-analysis 实战复盘"
 □ 2.3 新股/IPO日历
     - ⚠️ 7/15遗漏教训：必须查询未来3日新股申购/上市计划
     - 重点关注：融资规模>50亿的大型IPO
-    - 查什么：akshare新股日历接口或新浪财经新股板块
+    - 查什么：`ak.stock_ipo_declare_em()` ⭐已验证可用
+    - 怎么查：`df = ak.stock_ipo_declare_em()` 查看审核状态为"注册生效"的新股
+    - 重点关注：融资规模>50亿的大型IPO，关注申购日（资金压力最大的一天）
     - 为什么重要：大型IPO会对同板块存量股产生"资金虹吸"和"替代逻辑"双重冲击
+    - 历史参照：2020中芯国际IPO→半导体板块见顶回调3个月；2026长鑫IPO→半导体当日-3.59%
 
 □ 2.4 晚间/当日上午重要新闻
     - 国务院常务会议、部委政策文件、产业新闻
@@ -132,37 +135,81 @@ maintainer: "etf-analysis 实战复盘"
 
 ## 三、信息源覆盖清单与优化
 
-### 3.1 当前信息源评估
+### 3.1 数据源实战可用性评估报告
 
-| 信息源 | 当前状态 | 覆盖率 | 可靠性 | 延迟 |
-|--------|:-------:|:------:|:------:|:----:|
-| **akshare (Sina API)** — ETF历史行情 | ✅ 主力 | 高 | 中（有时返回空） | T+0但延迟15分钟 |
-| **akshare (EastMoney API)** — 实时行情 | ⚠️ 备选 | 高 | **低**（经常被代理拦截） | 实时 |
-| **akshare (EastMoney)** — 个股历史 | ⚠️ 备选 | 中 | **低**（同样被拦截） | T+0 |
-| **Playwright 新浪财经** — 新闻 | ✅ 主力 | 中 | 高 | 实时 |
-| **Playwright 新浪财经** — 盘面热词 | ✅ | 中 | 高 | 实时 |
-| **GitHub/外部数据** | ❌ 未使用 | — | — | — |
-| **东方财富/同花顺APP** | ❌ 未使用 | — | — | — |
+> 以下结论基于 2026/07/15 在 `push2.eastmoney.com` 被代理拦截环境下的实测。
 
-### 3.2 当前缺失的关键信息源（需补充）
+| 信息源 | API函数名 | 状态 | 速度 | 延迟 | 说明 |
+|--------|----------|:----:|:----:|:----:|------|
+| **Sina ETF历史行情** | `fund_etf_hist_sina` | ✅ **稳定** | 快 | T+0(15min) | 当前主力，首选 |
+| **Sina ETF分类** | `fund_etf_category_sina` | ✅ **稳定** | 快 | 准实时 | ETF基本信息查询 |
+| **Sina汇率** | `currency_boc_sina` | ✅ **稳定** | 快 | 实时 | 人民币汇率 |
+| **EastMoney ETF实时** | `fund_etf_spot_em` | ⚠️ **可用但慢** | 慢(30s+) | 实时 | 每请求遍历全部ETF，可用 |
+| **EastMoney 资金流向** | `stock_fund_flow_big_deal` | ✅ **可用** | 慢 | 实时 | 全市场大单交易流水 |
+| **EastMoney IPO日历** | `stock_ipo_declare_em` | ✅ **可用** | 中 | 准实时 | ⭐ 盘前必查，防遗漏 |
+| **EastMoney 沪深港通** | `stock_hsgt_fund_flow_summary_em` | ✅ **可用** | 快 | 准实时 | 北向/南向资金流向 |
+| **EastMoney 两融(沪)** | `macro_china_market_margin_sh` | ✅ **稳定** | 快 | T+1 | 杠杆资金态度 |
+| **EastMoney 两融(深)** | `macro_china_market_margin_sz` | ✅ **稳定** | 快 | T+1 | 同上 |
+| **宏观GDP** | `macro_china_gdp_yearly` | ✅ **稳定** | 快 | 官方数据 | 长期参考 |
+| **宏观CPI** | `macro_china_cpi_monthly` | ✅ **稳定** | 快 | 官方数据 | 通胀参考 |
+| **EastMoney 个股历史** | `stock_zh_a_hist` | ❌ **被拦截** | — | — | EastMoney push2his被代理封 |
+| **EastMoney 指数实时** | `stock_zh_index_spot_em` | ❌ **被拦截** | — | — | 同上 |
+| **EastMoney 美股** | `stock_us_spot_em` | ❌ **被拦截** | — | — | 同上 |
+| **EastMoney 港股** | `stock_hk_spot_em` | ❌ **被拦截** | — | — | 同上 |
+| **EastMoney 个股资金流** | `stock_individual_fund_flow` | ❌ **被拦截** | — | — | 同上 |
+| **EastMoney 主力资金** | `stock_main_fund_flow` | ❌ **被拦截** | — | — | EastMoney push2 502错误 |
+| **EastMoney 市场资金流** | `stock_market_fund_flow` | ❌ **被拦截** | — | — | push2his被代理封 |
 
-| 信息类型 | 缺失影响 | 如何获取（建议） |
-|---------|---------|----------------|
-| **新股发行/申购日历** | 7/15漏掉长鑫IPO | akshare新股接口或新浪财经新股板块 |
-| **北向资金流向** | 无法判断外资态度 | EastMoney沪深港通数据（akshare有接口） |
-| **南向资金流向** | 无法判断港股通资金 | 同上 |
-| **两融余额变动** | 无法判断杠杆资金态度 | 东方财富两融数据 |
-| **期货夜盘/隔夜走势** | 缺少A50期货/IH夜盘参考 | 新浪财经期货板块 |
-| **行业消息面** | 缺少系统化产业新闻采集 | Playwright定时扫描特定页面 |
+### 3.2 当前缺失的关键信息源与补充方案
 
-### 3.3 备选方案清单（当主数据源不可用时的fallback）
+| 信息类型 | 缺失影响 | 当前可用方案 | 未来优化方向 |
+|---------|---------|-------------|-------------|
+| **新股发行/申购日历** | 7/15漏掉长鑫IPO | ✅ **已补**：`stock_ipo_declare_em()` 可用 | 加入盘前自动检查脚本 |
+| **北向资金流向** | 无法量化外资态度 | ✅ **已补**：`stock_hsgt_fund_flow_summary_em()` 可用 | 格式化为易懂的"+/-亿" |
+| **南向资金流向** | 无法判断港股通热度 | ✅ 同上，区分"港股通(沪)"和"港股通(深)" | — |
+| **两融余额** | 无法判断杠杆态度 | ✅ `macro_china_market_margin_sh/sz` 可用 | 关注"信用账户_合计" |
+| **个股实时行情** | 龙头分化分析受阻 | ⚠️ Playwright抓取新浪财经个股页 | 写一个统一的个股数据脚本 |
+| **美股隔夜** | 无法确认隔夜风险偏好 | ⚠️ Playwright新浪财经美股板块 | 或使用免费美股API |
+| **期货夜盘/A50** | 缺少隔夜A股前瞻 | ❌ 暂无可用API | Playwright抓取 |
+| **行业消息面** | 产业新闻系统性缺失 | ⚠️ Playwright手动扫描 | 建立每日新闻扫描清单 |
 
-| 主数据源 | 备选1 | 备选2 |
-|---------|-------|-------|
-| akshare Sina ETF数据 | Playwright抓取新浪财经ETF页面 | — |
-| akshare EastMoney实时 | Playwright新浪财经自选股页面 | chatGPT插件联网搜索（不推荐，数据延迟大） |
-| 新闻（新浪） | 东方财富头条 | 同花顺财经 |
-| 美股隔夜 | 新浪财经美股板块 | 雅虎财经（Yahoo Finance） |
+### 3.3 全备选方案矩阵（按获取优先级排序）
+
+| 你需要什么 | 第一选择（最快） | 备选（被拦截时） | 终极方案（都失败时） |
+|-----------|----------------|-----------------|-------------------|
+| ETF昨日收盘 | `fund_etf_hist_sina` ⭐ | — | — |
+| ETF实时行情 | `fund_etf_spot_em` | Playwright新浪ETF自选页 | 手动查同花顺 |
+| ETF资金流向 | `stock_fund_flow_big_deal` 过滤代码 | — | — |
+| 个股行情(如比亚迪) | Playwright新浪个股页面 | `stock_zh_a_spot_em`（批量） | akshare stock_zh_a_hist（目前被拦截） |
+| 美股三大指数 | Playwright新浪美股 | — | 雅虎财经 |
+| 新股/IPO日历 | `stock_ipo_declare_em` ⭐ | 新浪财经新股板块 | 东方财富APP |
+| 北向资金 | `stock_hsgt_fund_flow_summary_em` ⭐ | — | — |
+| 两融余额 | `macro_china_market_margin_sh/sz` | — | — |
+| 经济数据 | Playwright到国家统计局确认时间 | — | 官方发布会直播 |
+| 财经新闻 | Playwright新浪财经首页 | Playwright东方财富头条 | — |
+
+### 3.4 实战经验：为什么EastMoney总被拦截？
+
+```
+根本原因（非代码问题，是网络问题）：
+  
+  本机网络 → [代理/防火墙] → EastMoney API服务器
+                                    ↑
+                             请求从代理IP发出
+                             被EastMoney识别为非正常访问
+                              → 连接重置 / 超时 / 502
+
+  只有少数请求从本地直连能通过：
+    fund_etf_spot_em()          → 用另一个端口（push2）偶尔能通
+    stock_fund_flow_big_deal()  → 用不同API路径
+    stock_ipo_declare_em()      → 不同域名
+    
+  解决方案的思路：
+    1️⃣ 在本机网络环境下，接受"EastMoney不可靠"的事实
+    2️⃣ 建立以 Sina + Playwright 为主的数据获取体系
+    3️⃣ EastMoney的API能用的就用，不能用的不纠结
+    4️⃣ Playwright可以模拟浏览器直接打开网页获取数据，不受代理限制
+```
 
 ---
 
@@ -352,14 +399,25 @@ Phase 3（持续）：风格切换预警信号
 
 | 需要获取的数据 | 第一选择 | 备选方案 |
 |--------------|---------|---------|
-| ETF历史行情 | akshare fund_etf_hist_sina | Playwright新浪财经ETF页面 |
-| ETF实时行情 | akshare fund_etf_spot_em | 同上（但延迟15分钟） |
-| 个股行情 | akshare stock_zh_a_hist | akshare stock_zh_a_spot_em |
-| 指数行情 | akshare stock_zh_index_spot_em | 新浪财经指数页面 |
-| 财经新闻 | Playwright新浪财经 | 东方财富头条 |
-| 新股日历 | akshare新股接口（待确认） | 新浪财经新股板块 |
-| 美股行情 | akshare stock_us_spot_em | Playwright雅虎财经 |
-| 港股行情 | akshare fund_etf_hist_sina（深市前缀） | — |
+| ETF历史行情 | `ak.fund_etf_hist_sina("sh512480")` | Playwright新浪财经ETF页面 |
+| ETF实时行情 | `ak.fund_etf_spot_em()` | Playwright新浪ETF自选股 |
+| 个股行情(比亚迪) | Playwright新浪财经个股页 | `ak.stock_zh_a_spot_em()`（批量全市场） |
+| 指数行情 | Playwright新浪财经指数页 | — |
+| 财经新闻 | Playwright新浪财经首页 | Playwright东方财富 |
+| 新股日历 | `ak.stock_ipo_declare_em()` | Playwright新浪财经新股板块 |
+| 北向/南向资金 | `ak.stock_hsgt_fund_flow_summary_em()` | — |
+| 美股行情 | Playwright新浪财经美股 | — |
+| 港股行情 | `ak.fund_etf_hist_sina("sz159920")` | — |
+| 两融余额 | `ak.macro_china_market_margin_sh()` + `_sz()` | — |
+| 宏观经济数据 | `ak.macro_china_gdp_yearly()` / `_cpi_monthly()` | 国家统计局官网 |
+| 大单资金流 | `ak.stock_fund_flow_big_deal()` 过滤ETF代码 | — |
+
+### 8.3 创建一个统一数据采集脚本
+
+> 建议：将 `scripts/get_etf_data.py` 升级为统一的数据采集模块，
+> 内置自动fallback逻辑：主API失败→尝试备选→返回带"数据质量标记"的结果。
+> 
+> 这个脚本的模板已经在 etf-operation 体系中预留，后续可以逐步完善。
 
 ---
 
