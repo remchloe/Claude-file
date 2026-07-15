@@ -15,10 +15,12 @@ Claude-file/
 │   ├── documents/             # 其他文档
 │   └── configs/               # 配置文件
 ├── reports/                   # 分析报告（ETF周报/日报）
-├── references/                # 参考文档（双SKILL体系）
+├── references/                # 参考文档（三重SKILL体系）
 │   ├── etf-analysis_SKILL.md    # [理论] ETF分类/指标/策略/代码模板
-│   └── etf-operation_SKILL.md   # [实战] ⭐盘前流程/偏差记录/持续改进
-│                                 # 每次操作前必读，每次偏差后更新
+│   ├── etf-operation_SKILL.md   # [实战] ⭐盘前流程/偏差记录/持续改进
+│   │                             # 每次操作前必读，每次偏差后更新
+│   └── etf-system_OVERVIEW.md   # [概览] ⭐⭐ 新会话从这里开始！
+│                                 # 包含完整架构/流程/路线图/经验教训
 ├── assets/                    # 其他资源
 ├── .gitignore
 └── README.md
