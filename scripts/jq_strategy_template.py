@@ -313,12 +313,12 @@ def initialize(context):
 
     # 09:30 早盘执行
     run_daily(morning_run, time='open')
-    # 12:00 盘中修正
-    run_daily(afternoon_run, time='12:00')
+    # 12:30 盘中修正
+    run_daily(afternoon_run, time='12:30')
     # 14:50 止损检查
     run_daily(stop_check_run, time='14:50')
 
-    log.info('v13启动 | 双级止损+置信度+波动率上限+组合回撤保护+12:00盘中修正')
+    log.info('v13启动 | 双级止损+置信度+波动率上限+组合回撤保护+12:30盘中修正')
 
 
 def morning_run(context):
@@ -329,9 +329,9 @@ def morning_run(context):
 
 def afternoon_run(context):
     """
-    12:00 盘中修正。
+    12:30 盘中修正。
     如果SIGNAL没有变化（和上次执行时相同），自动跳过。
-    如果需要修正，更新SIGNAL后保存即可，13:00开盘自动执行。
+    如果需要修正，更新SIGNAL后保存即可，下午开盘自动执行。
     """
     log.info('===== 12:00盘中检查 =====')
     execute_rebalance(context)
