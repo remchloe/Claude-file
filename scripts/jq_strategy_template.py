@@ -1,13 +1,12 @@
 """
-聚宽 ETF 策略 — v11 自适应环境版
+聚宽 ETF 策略 — v12 多策略投票版
 ====================================
-新增：自动识别市场环境（单边/震荡/分化），调整策略参数。
-
-工作机制：
-  1. 优先使用 SIGNAL（Claude每日信号）
-  2. 但 SIGNAL 的乘数和现金比例会根据市场环境自动调整
-  3. 例如在"单边下跌"环境中，"买入"信号的乘数自动从1.2降到1.0
-  4. 如果没有 SIGNAL，使用均线备选+环境自适应
+与v11的区别：
+  - 新增三策略投票机制（取代单信号模式）
+  - 主策略(Claude宏观) 权重70%
+  - 技术策略(均线动量) 权重20%
+  - 环境策略(市场分类器) 权重10%
+  - 三策略投票决定最终方向和仓位
 
 使用方式不变：每天复制Claude报告底部的SIGNAL → 粘贴下面 → 保存 ✅
 """
@@ -117,32 +116,58 @@ def daily_run(context):
         if df is not None and len(df) >= 20:
             price_dict[code] = df['close'].values
 
-    # ---- 第2步：判断市场环境 ----
+    # ---- 第2步：收集三策略独立信号 ----
+    # 策略1（权重70%）：Claude宏观信号
+    sig1 = SIGNAL.get('signals', {})
+    has_signal = len(sig1) > 0
+
+    # 策略2（权重20%）：均线动量信号
+    sig2 = ma_signals()
+
+    # 策略3（权重10%）：环境分类器信号
     regime, env_mult, env_cash, env_desc = classify_regime(price_dict)
     log.info('市场环境: ' + env_desc)
 
-    # ---- 第3步：获取信号 ----
-    sig = SIGNAL.get('signals', {})
-    has_signal = len(sig) > 0
+    sig3 = {}
+    for code in ETF_CODE_LIST:
+        if regime == 'uptrend':
+            sig3[code] = 1
+        elif regime == 'downtrend':
+            sig3[code] = -1
+        else:
+            sig3[code] = 0
 
-    if has_signal:
-        log.info('使用SIGNAL | ' + str(SIGNAL.get('date','')) + ' | ' + str(SIGNAL.get('market_phase','')))
-        mult = env_mult
-        cash_pct = SIGNAL.get('cash_pct', 0.05) + env_cash
-        cash_pct = max(0.05, min(0.30, cash_pct))
+    # ---- 第3步：三策略加权投票 ----
+    if not has_signal:
+        log.info('无SIGNAL，降级为技术策略(80%)+环境策略(20%)')
+        sig1 = {k: 0 for k in ETF_CODE_LIST}
+        w1, w2, w3 = 0.0, 0.80, 0.20
     else:
-        sig = ma_signals()
-        mult = env_mult
-        cash_pct = 0.05 + env_cash
-        log.info('无SIGNAL，使用均线备选+环境自适应')
+        log.info('三策略投票 | ' + str(SIGNAL.get('date','')))
+        w1, w2, w3 = 0.70, 0.20, 0.10
 
-    log.info('  乘数: +1=%.2f, 0=%.2f, -1=%.2f | 现金=%d%%' % (mult[1], mult[0], mult[-1], cash_pct*100))
+    final_sig = {}
+    for code in ETF_CODE_LIST:
+        vote = sig1.get(code, 0) * w1 + sig2.get(code, 0) * w2 + sig3.get(code, 0) * w3
+        if vote > 0.3:
+            final_sig[code] = 1
+        elif vote < -0.3:
+            final_sig[code] = -1
+        else:
+            final_sig[code] = 0
+
+    for code in ETF_CODE_LIST:
+        log.info('  %s: 宏观=%d 技术=%d 环境=%d -> 最终=%d' %
+                 (ETF_NAME_DICT[code], sig1.get(code,0), sig2.get(code,0), sig3.get(code,0), final_sig[code]))
 
     # ---- 第4步：权重计算 ----
+    cash_pct = SIGNAL.get('cash_pct', 0.10) + env_cash
+    cash_pct = max(0.05, min(0.30, cash_pct))
+
     w = {}
     for code in ETF_CODE_LIST:
-        s = sig.get(code, 0)
-        w[code] = min(ETF_BASE_WEIGHT[code] * mult.get(s, 1.0), 0.35)
+        s = final_sig.get(code, 0)
+        w[code] = min(ETF_BASE_WEIGHT[code] * env_mult.get(s, 1.0), 0.35)
 
     total = 0.0
     for v in w.values():
@@ -151,6 +176,8 @@ def daily_run(context):
         return
     scale = 1.0 - cash_pct
     target = {k: v / total * scale for k, v in w.items()}
+
+    log.info('  现金=%d%%' % (cash_pct * 100))
 
     # ---- 第5步：调仓 ----
     total_val = context.portfolio.total_value
