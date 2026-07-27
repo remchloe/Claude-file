@@ -2,7 +2,7 @@
 name: etf-operation
 description: "ETF实战操作体系：盘前分析流程、盘中修正机制、信息源覆盖清单、常见偏差纠正、持续改进框架。基于etf-analysis方法论与连续实战复盘总结。"
 category: operational-methodology
-version: "1.3.0"
+version: "1.3.1"
 last_updated: "2026-07-21"
 maintainer: "etf-analysis 实战复盘"
 ---
@@ -699,6 +699,8 @@ Phase 3 —— 全自动（需严格风控）
           买入条件单: 挂1.06~1.08(跌到位自动成交)
           止损条件单: 挂1.02(跌破离场)
      说明：利用券商条件单功能自动挂单，不用盯盘
+     华宝券商支持：普通条件单 + 反弹条件单 + 止损条件单
+     同花顺APP路径：下单 -> 条件单 -> 选择触发类型
      数据来源：前日收盘价+支撑位/压力位计算
 ```
 
