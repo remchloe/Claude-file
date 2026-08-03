@@ -2,7 +2,7 @@
 name: etf-operation
 description: "ETF实战操作体系：盘前分析流程、盘中修正机制、信息源覆盖清单、常见偏差纠正、持续改进框架。基于etf-analysis方法论与连续实战复盘总结。"
 category: operational-methodology
-version: "1.4.1"
+version: "1.5.0"
 last_updated: "2026-07-30"
 maintainer: "etf-analysis 实战复盘"
 ---
