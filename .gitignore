@@ -8,6 +8,13 @@ Desktop.ini
 *.key
 .env
 *.env.local
+# 微博登录态目录（含 Cookie，绝对不可入库）
+weibo_profile/
+**/weibo_profile/
+
+# Python
+__pycache__/
+*.pyc
 
 # Temporary files
 *.tmp
@@ -21,3 +28,7 @@ Desktop.ini
 *.7z
 *.tar.gz
 node_modules/
+
+# 微博报告配图（61MB 二进制，可由 scripts/weibo/weibo_report.py 重新下载）
+# 报告 HTML/MD 已入库；如需在仓库中离线查看配图，删除下面这行后 git add 即可
+reports/weibo/*/images/
