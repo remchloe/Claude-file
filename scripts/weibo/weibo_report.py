@@ -15,6 +15,9 @@
 
 抓取前需先运行 wb_login.py 完成扫码登录。
 
+选项:
+    --comments     额外抓取重点帖的热门评论与博主回复（默认关闭，因评论区噪声大）
+
 环境变量:
     WEIBO_PROFILE  登录态目录（默认 ~/weibo_profile，含敏感凭证，勿入库）
     WEIBO_OUTDIR   输出目录（默认 仓库 reports/weibo/）
@@ -107,12 +110,57 @@ def fetch_long(ctx, posts):
         time.sleep(1.2)
     log("long texts fetched: %d" % ok)
 
+def fetch_comments(ctx, posts, self_name, top_n=3):
+    """抓取重点帖的热门评论（含博主本人回复）。
+
+    只抓两类帖：有长文的、互动靠前的 —— 评论区信噪比低，全量抓取无意义。
+    返回 {mid: {"his": [...], "top": [(赞数, 用户, 文本), ...]}}
+    """
+    longs = [m for m in posts if m.get("isLongText") or m.get("long_text")]
+    hot = sorted(posts, key=lambda m: m.get("attitudes_count", 0), reverse=True)[:30]
+    targets = {str(m["id"]): m for m in (longs + hot)}
+    log("comments: %d 个重点帖" % len(targets))
+    out = {}
+    for i, mid in enumerate(targets):
+        got, max_id = [], None
+        for pg in range(2):
+            url = ("https://m.weibo.cn/comments/hotflow?id=%s&mid=%s&max_id_type=0" % (mid, mid))
+            if max_id: url += "&max_id=%s" % max_id
+            try:
+                d = ctx.request.get(url, headers=H, timeout=30000).json().get("data") or {}
+                got.extend(d.get("data") or [])
+                max_id = d.get("max_id")
+                if not max_id: break
+            except Exception as e:
+                log("  comment %s err %s" % (mid, e)); break
+            time.sleep(0.8)
+        his, top = [], []
+        for c in got:
+            u = (c.get("user") or {}).get("screen_name", "")
+            tx = clean(c.get("text") or "")
+            if u == self_name and tx:
+                his.append(tx)
+            for rep in (c.get("comments") or []):
+                if (rep.get("user") or {}).get("screen_name") == self_name:
+                    t2 = clean(rep.get("text") or "")
+                    if t2: his.append("[回复] " + t2)
+            lk = c.get("like_count") or 0
+            if tx and len(tx) >= 12:            # 过滤纯玩梗短评
+                top.append((lk, u, tx))
+        top = sorted(top, reverse=True)[:top_n]
+        if his or top: out[mid] = {"his": his, "top": top}
+        if i % 10 == 0: log("  %d/%d" % (i, len(targets)))
+        time.sleep(0.8)
+    log("comments: %d 帖有可用内容" % len(out))
+    return out
+
 def build(posts):
     posts.sort(key=lambda p: p.get("_dt", ""), reverse=True)
     recs = []
     for m in posts:
         rt = m.get("retweeted_status")
-        r = {"dt": m.get("_dt", ""), "text": clean(m.get("long_text") or m.get("text") or ""),
+        r = {"dt": m.get("_dt", ""), "id": str(m.get("id")),
+             "text": clean(m.get("long_text") or m.get("text") or ""),
              "likes": m.get("attitudes_count", 0), "comments": m.get("comments_count", 0),
              "reposts": m.get("reposts_count", 0), "is_rt": bool(rt),
              "imgs": [(p.get("large") or p.get("original") or p).get("url")
@@ -124,7 +172,7 @@ def build(posts):
         recs.append(r)
     return recs
 
-def write_reports(recs, name, uid, start, end, outdir, dname):
+def write_reports(recs, name, uid, start, end, outdir, dname, cmts=None):
     os.makedirs(outdir, exist_ok=True)
     orig = [r for r in recs if not r["is_rt"]]
     bymonth = collections.Counter(r["dt"][:7] for r in recs if r["dt"])
@@ -132,6 +180,7 @@ def write_reports(recs, name, uid, start, end, outdir, dname):
     wimg = sum(1 for r in recs if r["imgs"]); wvid = 0
     top = sorted(recs, key=lambda r: r["likes"], reverse=True)[:10]
     fin = os.path.join(outdir, "%s_%s-%s" % (dname, start, end))
+    cmts = cmts or {}
     md = []; A = md.append
     A("# %s · 微博整理报告" % name); A("")
     A("> 主页：https://weibo.com/u/%s　|　范围：**%s ~ %s**" % (uid, start, end)); A("")
@@ -164,15 +213,23 @@ def write_reports(recs, name, uid, start, end, outdir, dname):
         for u in r["imgs"]: A("![](%s)" % u)
         if r["imgs"]: A("")
         A("互动：👍 %d　💬 %d　🔁 %d　| [原文](%s)" % (r["likes"], r["comments"], r["reposts"], r["url"]))
-        A(""); A("---")
+        cmt = cmts.get(str(r.get("id")))
+        if cmt:
+            for h in cmt["his"][:3]:
+                A("> 🔸 **博主补充：** %s" % h.replace(chr(10), " "))
+            for lk, u, tx in cmt["top"][:2]:
+                A("> 💬 [%d赞] %s：%s" % (lk, u, tx.replace(chr(10), " ")))
+            A("")
+        A("---")
     open(fin + ".md", "w", encoding="utf-8").write(chr(10).join(md))
     log("输出: %s.md" % fin)
 
 def main():
     if len(sys.argv) < 2:
         print(__doc__); return
-    name = sys.argv[1]
-    start = sys.argv[2] if len(sys.argv) > 2 else (datetime.datetime.now() - datetime.timedelta(days=60)).strftime("%Y-%m-%d")
+    name = [a for a in sys.argv[1:] if not a.startswith("--")][0]
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    start = args[1] if len(args) > 1 else (datetime.datetime.now() - datetime.timedelta(days=60)).strftime("%Y-%m-%d")
     end = datetime.date.today().strftime("%Y-%m-%d")
     start_dt = datetime.datetime.strptime(start, "%Y-%m-%d")
     log("目标博主: %s | 起始: %s" % (name, start))
@@ -202,7 +259,9 @@ def main():
         fetch_long(ctx, posts)
         outdir = os.path.join(OUTDIR, "%s_微博报告" % name)
         recs = build(posts)
-        write_reports(recs, name, uid, start, end, outdir, name)
+        # 评论区噪声大（多为玩梗），默认不抓；加 --comments 才启用
+        cmts = fetch_comments(ctx, posts, name) if "--comments" in sys.argv else {}
+        write_reports(recs, name, uid, start, end, outdir, name, cmts)
         log("全部完成 -> %s" % outdir)
         ctx.close()
 
