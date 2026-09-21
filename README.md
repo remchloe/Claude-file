@@ -17,7 +17,7 @@ Claude-file/
 ├── reports/                   # 分析报告
 │   ├── ETF周报/日报...md        # ETF 分析报告
 │   └── weibo/                 # 微博博主整理报告
-│       └── <博主名>_微博报告/    # .md/.html + images/(配图不入库)
+│       └── <博主名>_微博报告/    # 纯 Markdown，可直接在 GitHub 阅读
 ├── scripts/weibo/             # 微博抓取工具（详见其 README.md）
 │   ├── wb_login.py            #   扫码登录（一次性）
 │   └── weibo_report.py        #   抓取 + 生成报告
@@ -44,7 +44,7 @@ Claude-file/
 | `generated-files/documents` | 存放其他文档 |
 | `generated-files/configs` | 存放配置文件 |
 | `reports/` | 存放分析报告（ETF 周报/日报等） |
-| `reports/weibo/` | 微博博主整理报告（HTML/MD，配图见下） |
+| `reports/weibo/` | 微博博主整理报告（Markdown，GitHub 原生渲染） |
 | `scripts/weibo/` | 微博抓取工具，用法见 `scripts/weibo/README.md` |
 | `data/weibo/` | 微博结构化数据（JSON，可直接检索） |
 | `references/` | 参考文档、SKILL 文件（详见上方目录结构说明） |
@@ -57,8 +57,8 @@ Claude-file/
 > 运行方式见 `scripts/weibo/README.md`。首次需扫码登录（`wb_login.py`）。
 
 - **登录态**：保存在 `~/weibo_profile`，含 Cookie，**禁止提交**（`.gitignore` 已排除）。
-- **配图**：报告 HTML/MD 已入库；`images/` 目录（数十 MB 二进制）默认**不入库**，
-  可从 `data/weibo/*.json` 中的 `images` 字段用脚本重新下载，或在本地保留即可离线查看。
+- **输出**：仅 Markdown 单文件，GitHub 上点开即读，无需下载或开新标签页。
+  配图使用微博原图链接（GitHub 经图片代理渲染），仓库不存二进制。
 
 ## 同步命令
 

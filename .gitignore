@@ -29,6 +29,5 @@ __pycache__/
 *.tar.gz
 node_modules/
 
-# 微博报告配图（61MB 二进制，可由 scripts/weibo/weibo_report.py 重新下载）
-# 报告 HTML/MD 已入库；如需在仓库中离线查看配图，删除下面这行后 git add 即可
+# 微博报告为纯 Markdown（配图走微博原图链接），不产生本地图片目录
 reports/weibo/*/images/

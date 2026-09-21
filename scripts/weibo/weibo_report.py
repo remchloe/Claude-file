@@ -7,9 +7,11 @@
 示例:
     python weibo_report.py "王虎的舰桥" 2026-07-21
 
-默认抓取最近 60 天。输出到 reports/weibo/<博主名>_微博报告/，包含:
-    <博主名>_<起>-<止>.md / .html   整理报告（含配图、互动数据、原文链接）
-    images/                          配图（本地化，规避微博图床防盗链）
+默认抓取最近 60 天。输出到 reports/weibo/<博主名>_微博报告/：
+    <博主名>_<起>-<止>.md   整理报告（Markdown，含配图、互动数据、原文链接）
+
+仅输出 Markdown，便于直接在 GitHub 上查看。配图使用微博原图链接
+（GitHub 会经图片代理渲染），不下载本地文件、不产生二进制入库。
 
 抓取前需先运行 wb_login.py 完成扫码登录。
 
@@ -19,7 +21,6 @@
 """
 import sys, os, re, json, time, html as _html, datetime, collections
 import urllib.request
-import concurrent.futures as cf
 from playwright.sync_api import sync_playwright
 
 PROFILE = os.environ.get("WEIBO_PROFILE",
@@ -106,30 +107,6 @@ def fetch_long(ctx, posts):
         time.sleep(1.2)
     log("long texts fetched: %d" % ok)
 
-def download_images(posts, dst):
-    os.makedirs(dst, exist_ok=True)
-    tasks = {}
-    for m in posts:
-        for p in (m.get("pics") or []):
-            u = (p.get("large") or p.get("original") or p).get("url")
-            if u: tasks[u.rsplit("/", 1)[-1]] = re.sub(r'sinaimg\.cn/\w+/', 'sinaimg.cn/bmiddle/', u)
-    log("images: %d" % len(tasks))
-    def get(it):
-        base, url = it; fp = os.path.join(dst, base)
-        if os.path.exists(fp) and os.path.getsize(fp) > 0: return 1
-        for _ in range(3):
-            try:
-                d = urllib.request.urlopen(urllib.request.Request(
-                    url, headers={"User-Agent": "curl/8.0", "Referer": "https://weibo.com/"}),
-                    timeout=30).read()
-                if d and len(d) > 200: open(fp, "wb").write(d); return 1
-            except Exception: pass
-        return 0
-    ok = 0
-    with cf.ThreadPoolExecutor(max_workers=12) as ex:
-        for r in ex.map(get, tasks.items()): ok += r
-    log("images saved: %d/%d" % (ok, len(tasks)))
-
 def build(posts):
     posts.sort(key=lambda p: p.get("_dt", ""), reverse=True)
     recs = []
@@ -184,48 +161,12 @@ def write_reports(recs, name, uid, start, end, outdir, dname):
             if r["text"].strip(): A("**评论：** " + r["text"]); A("")
         else:
             A(r["text"] or "（无正文）"); A("")
-        for u in r["imgs"]: A("![](images/%s)" % u.rsplit("/", 1)[-1])
+        for u in r["imgs"]: A("![](%s)" % u)
         if r["imgs"]: A("")
         A("互动：👍 %d　💬 %d　🔁 %d　| [原文](%s)" % (r["likes"], r["comments"], r["reposts"], r["url"]))
         A(""); A("---")
     open(fin + ".md", "w", encoding="utf-8").write(chr(10).join(md))
-    H = []; B = H.append
-    B("<!doctype html><html lang='zh'><head><meta charset='utf-8'>")
-    B("<meta name='viewport' content='width=device-width,initial-scale=1'><title>%s 微博整理</title>" % name)
-    B("<style>body{font-family:-apple-system,'Microsoft YaHei',sans-serif;max-width:860px;margin:0 auto;padding:24px;background:#f5f6f8;color:#1f2329;line-height:1.75}")
-    B("h1{font-size:26px;border-bottom:3px solid #ff8140;padding-bottom:10px}h2{font-size:19px;margin-top:36px;background:#ff8140;color:#fff;padding:8px 14px;border-radius:6px}")
-    B("h3{font-size:14px;color:#6b7280;margin:22px 0 6px}.post{background:#fff;border-radius:10px;padding:16px 18px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,.07)}")
-    B(".post.rt{border-left:4px solid #4a90d9}.meta{color:#8a8f99;font-size:13px;margin-top:10px}.tag{font-size:12px;padding:1px 8px;border-radius:10px;background:#e6f0fb;color:#2d6cb5}")
-    B("blockquote{margin:6px 0;padding:8px 12px;background:#f5f7fa;border-left:3px solid #c9d2dc}.stats{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}")
-    B(".stat{background:#fff;border-radius:8px;padding:10px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);font-size:13px}.stat b{display:block;font-size:20px;color:#ff8140}")
-    B("table{border-collapse:collapse;width:100%;background:#fff;border-radius:8px;overflow:hidden;font-size:14px}th,td{border-bottom:1px solid #eef1f5;padding:8px 10px;text-align:left}th{background:#fafbfc}")
-    B("a{color:#2d6cb5;text-decoration:none}img{max-width:170px;border-radius:6px;margin:4px 4px 0 0}</style></head><body>")
-    B("<h1>%s · 微博整理报告</h1>" % _html.escape(name))
-    B("<p>主页：<a href='https://weibo.com/u/%s'>weibo.com/u/%s</a>　|　范围：<b>%s ~ %s</b>　|　共 <b>%d</b> 条</p>" % (uid, uid, start, end, len(recs)))
-    B("<div class='stats'>")
-    for k, v in [("总帖数", len(recs)), ("原创", len(orig)), ("转发", len(recs)-len(orig)), ("含图", wimg), ("覆盖天数", len(days))]:
-        B("<div class='stat'>%s<b>%d</b></div>" % (k, v))
-    B("</div><h2>互动量 TOP 10</h2><table><tr><th>时间</th><th>👍</th><th>💬</th><th>🔁</th><th>摘要</th></tr>")
-    for r in top:
-        B("<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%s</td></tr>" % (r["dt"][:16], r["likes"], r["comments"], r["reposts"], _html.escape(r["text"][:60].replace(chr(10), " ")) or "（转发）"))
-    B("</table><h2>正文（按时间倒序）</h2>")
-    cur = None
-    for r in recs:
-        mo = r["dt"][:7]
-        if mo != cur: cur = mo; B("<h2>%s（%d 条）</h2>" % (mo, bymonth[mo]))
-        B("<div class='post%s'>" % (" rt" if r["is_rt"] else ""))
-        B("<h3>%s %s</h3>" % (r["dt"], "<span class='tag'>🔁 转发</span>" if r["is_rt"] else ""))
-        if r["is_rt"]:
-            B("<blockquote><b>@%s：</b><br>%s</blockquote>" % (_html.escape(r["rt_author"]), _html.escape(r["rt_text"]).replace(chr(10), "<br>")))
-            if r["text"].strip(): B("<p>%s</p>" % _html.escape(r["text"]).replace(chr(10), "<br>"))
-        else:
-            B("<div>%s</div>" % (_html.escape(r["text"]).replace(chr(10), "<br>") or "（无正文）"))
-        if r["imgs"]:
-            B("<div>" + "".join("<a href='%s' target='_blank'><img src='images/%s' loading='lazy'></a>" % (u, u.rsplit("/", 1)[-1]) for u in r["imgs"]) + "</div>")
-        B("<div class='meta'>👍 %d　💬 %d　🔁 %d　|　<a href='%s' target='_blank'>原文</a></div></div>" % (r["likes"], r["comments"], r["reposts"], r["url"]))
-    B("</body></html>")
-    open(fin + ".html", "w", encoding="utf-8").write("".join(H))
-    log("输出: %s.md / %s.html" % (fin, fin))
+    log("输出: %s.md" % fin)
 
 def main():
     if len(sys.argv) < 2:
@@ -260,7 +201,6 @@ def main():
         log("抓取完成: %d 条" % len(posts))
         fetch_long(ctx, posts)
         outdir = os.path.join(OUTDIR, "%s_微博报告" % name)
-        download_images(posts, os.path.join(outdir, "images"))
         recs = build(posts)
         write_reports(recs, name, uid, start, end, outdir, name)
         log("全部完成 -> %s" % outdir)
